@@ -19,10 +19,8 @@ namespace WPSDB
     const string LAYOUT_ITEM_NAME = "KWS_";
     const string DEFAULT_WPSDF_PATH = @"C:\Users\Public\Documents\Delfoi\WPS\WPS_DataFile_";
     const string WPSPATH_END = @".wpsdf";
-    //Dictionary<ISimComponent, bool> buffFileExist = new Dictionary<ISimComponent, bool>();
-    ////bool buffFileExist = false;
-    bool sameFile = false;
     string serializedData = "{}";
+
     Dictionary<ISimComponent, string> robSettings = new Dictionary<ISimComponent, string>();
     Dictionary<string, RobotData> robotsData = new Dictionary<string, RobotData>();
 
@@ -58,7 +56,6 @@ namespace WPSDB
       ISimWorld world = app.World;
       bool hasRobots = LayoutHasRobots(world);
       IMessageService ms = IoC.Get<IMessageService>();
-      //Dictionary<ISimComponent, string> robotData = GetWPSRobotDataFromLayout(app, world);
     }
 
     private void AppLayoutLoading(object sender, LayoutLoadingEventArgs e)
@@ -230,9 +227,9 @@ namespace WPSDB
           string wpsFilePath = string.Empty;
           string wpsFileBuffer = DEFAULT_WPSDF_PATH + robName + WPSPATH_END;
           bool isSameFile = false;
-          serializedData = null;
-          IProperty ropSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
-          string settingsValue = ropSettingsProp.Value?.ToString() ?? "{}";
+          serializedData = "{}";
+          IProperty robSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
+          string settingsValue = robSettingsProp.Value?.ToString() ?? "{}";
           string wpsItemName = LAYOUT_ITEM_NAME + robName;
           try
           {
@@ -250,25 +247,26 @@ namespace WPSDB
               // Сериализуем объект обратно в строку для хранения в классе RobotData
               serializedData = wpsdfObject.ToString();
             }
+            else
+            {
+              IMessageBoxService mbs = IoC.Get<IMessageBoxService>();
+              var result = mbs.Show($"WpsFilePath '{wpsFilePath}' does not exist for component '{comp.Name}'. A default path will be used: {wpsFileBuffer}","WPS File path check");
+            }
           }
           catch (Exception ex)
           {
             IMessageService ms = IoC.Get<IMessageService>();
             ms.AppendMessage($"Error processing component '{comp.Name}': {ex.Message}", MessageLevel.Warning);
           }
-          
-          if (!string.IsNullOrEmpty(serializedData))
+          robotData[comp.Name] = new RobotData
           {
-            robotData[robName] = new RobotData
-            {
-              RobotComponent = comp,
-              WpsFilePath = wpsFilePath,
-              IsSameFile = isSameFile,
-              WpsFileBuffer = wpsFileBuffer,
-              SerializedData = serializedData,
-              WpsItemName = wpsItemName
-            };
-          }
+            RobotComponent = comp,
+            WpsFilePath = wpsFilePath,
+            IsSameFile = isSameFile,
+            WpsFileBuffer = wpsFileBuffer,
+            SerializedData = serializedData,
+            WpsItemName = wpsItemName
+          };
         }
       }
       return robotData;
