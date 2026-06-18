@@ -1,15 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-
-
+﻿using Caliburn.Micro;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.Composition;
-using Caliburn.Micro;
+using System.IO;
+using System.Linq;
 using VisualComponents.Create3D;
 using VisualComponents.UX.Shared;
-using Newtonsoft.Json;
 
 namespace WPSDB
 {
@@ -33,7 +31,6 @@ namespace WPSDB
     }
 
 
-
     void IPlugin.Exit()
     {
 
@@ -49,29 +46,69 @@ namespace WPSDB
       app.LayoutLoaded += AppLayoutLoaded;
     }
 
+
     private void AppLayoutLoaded(object sender, LayoutLoadedEventArgs e)
     {
       IApplication app = _app.Value;
       ISimWorld world = app.World;
       bool hasRobots = LayoutHasRobots(world);
       IMessageService ms = IoC.Get<IMessageService>();
+      if (hasRobots)
+      {
+        robotsData = GetRobotsData(app, world);
+        bool isHasWPSDFData = LayoutHasWPSDFData(world);
+        if (isHasWPSDFData)
+
+        {
+          // Если в layout есть данные WPSDF для роботов, проверяем буферные файлы и
+          // загружаем данные WPSDF для каждого робота из layout в его буферный файл,
+          // если буферный файл не существует он будет создан
+          ms.AppendMessage("Layout contains WPSDF data for robots.", MessageLevel.Warning);
+          CheckRobWPSBuffer(robotsData);
+          foreach (var rd in robotsData.Values)
+          {
+            string wpsdfData = GetRobWpsdfDataFromLY(rd.RobotComponent.Name);
+            if (!string.IsNullOrEmpty(wpsdfData))
+            {
+              try
+              {
+                File.WriteAllText(rd.WpsFileBuffer, wpsdfData);
+                ms.AppendMessage($"WPSDF data for robot '{rd.RobotComponent.Name}' was loaded from layout to buffer file: {rd.WpsFileBuffer}", MessageLevel.Warning);
+              }
+              catch (Exception ex)
+              {
+                ms.AppendMessage($"Error writing WPSDF data to buffer file for robot '{rd.RobotComponent.Name}': {ex.Message}", MessageLevel.Error);
+              }
+            }
+            else
+            {
+              ms.AppendMessage($"No WPSDF data found in layout for robot '{rd.RobotComponent.Name}'. Buffer file will not be updated.", MessageLevel.Warning);
+            }
+          }
+        }
+        else
+        {
+          ms.AppendMessage("Layout does not contain WPSDF data for robots. Robot components will not be updated with WPSDF data.", MessageLevel.Warning);
+        }
+      }
     }
+
 
     private void AppLayoutLoading(object sender, LayoutLoadingEventArgs e)
     {
-      IMessageService ms = IoC.Get<IMessageService>();
-      ms.AppendMessage("Layout Load Started", MessageLevel.Warning);
+
     }
+
 
     private void AppLayoutSaved(object sender, LayoutSavedEventArgs e)
     {
       IMessageService ms = IoC.Get<IMessageService>();
       // Если буферный файл существует и не совпадает с текущим файлом, сохраняем данные в буферный файл
-      foreach (var robotData in robotsData.Values) 
-      
-      { 
+      foreach (var robotData in robotsData.Values)
+
+      {
         if (robotData.WpsFileExist && !robotData.IsSameFile)
-        { 
+        {
           File.WriteAllText(robotData.WpsFileBuffer, robotData.SerializedData);
         }
         IProperty ropSettingsProp = robotData.RobotComponent.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
@@ -90,12 +127,23 @@ namespace WPSDB
           }
         }
       }
-    ms.AppendMessage("Layout Saving Finished", MessageLevel.Warning);
+      ms.AppendMessage("Layout Saving Finished", MessageLevel.Warning);
     }
 
     private bool LayoutHasRobots(ISimWorld world)
     {
       return world.Components.Any(comp => comp.Behaviors.Any(beh => beh.Type == BehaviorType.RobotController));
+    }
+
+
+    /// <summary>
+    /// Проверяет наличие в layout элементов, начинающихся с "KWS_" и являющихся ILayoutPropertyList, что указывает на наличие данных WPSDF для роботов в layout.
+    /// </summary>
+    /// <param name="world"></param>
+    /// <returns></returns>
+    private bool LayoutHasWPSDFData(ISimWorld world)
+    {
+      return world.LayoutItems.Any(li => li.Name.StartsWith(LAYOUT_ITEM_NAME) && li is ILayoutPropertyList);
     }
 
     private void AppLayoutSaving(object sender, LayoutSavingEventArgs e)
@@ -112,6 +160,7 @@ namespace WPSDB
 
     }
 
+
     /// <summary>
     /// Получаем данные WPSDF для всех роботов из World и возвращаем их в виде словаря.
     /// </summary>
@@ -122,7 +171,7 @@ namespace WPSDB
     /// объект RobotData, содержащий данные WPSDF и другую информацию для данного робота.
     /// </returns>
     private Dictionary<string, RobotData> GetRobotsData(IApplication app, ISimWorld world)
-    {  
+    {
       Dictionary<string, RobotData> robotData = new Dictionary<string, RobotData>();
       foreach (var comp in world.Components)
       {
@@ -135,7 +184,7 @@ namespace WPSDB
           string serializedData = "{}";
           IProperty robSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
           string settingsValue = robSettingsProp.Value?.ToString() ?? "{}";
-          string wpsItemName = LAYOUT_ITEM_NAME + robName;
+          string wpsItemName = LAYOUT_ITEM_NAME + comp.Name;
           try
           {
             // Парсим JSON-строку в JObject
@@ -155,7 +204,7 @@ namespace WPSDB
             else
             {
               IMessageBoxService mbs = IoC.Get<IMessageBoxService>();
-              var result = mbs.Show($"WpsFilePath '{wpsFilePath}' does not exist for component '{comp.Name}'. A default path will be used: {wpsFileBuffer}","WPS File path check");
+              var result = mbs.Show($"WpsFilePath '{wpsFilePath}' does not exist for component '{comp.Name}'. A default path will be used: {wpsFileBuffer}", "WPS File path check");
             }
           }
           catch (Exception ex)
@@ -176,12 +225,14 @@ namespace WPSDB
       }
       return robotData;
     }
+
+
     /// <summary>
     /// Проверяет существование буферного файла WPSDF для каждого робота и создаёт его, если он не существует.
     /// </summary>
     /// <param name="robotsData">Словарь, где ключом является имя компонента робота, а значением -
     /// объект RobotData, содержащий данные WPSDF и другую информацию для данного робота.</param>
-    private void CheckRobWPSBuffer (Dictionary<string, RobotData> robotsData)
+    private void CheckRobWPSBuffer(Dictionary<string, RobotData> robotsData)
     {
       IMessageService ms = IoC.Get<IMessageService>();
 
@@ -189,7 +240,6 @@ namespace WPSDB
       {
         foreach (var robotData in robotsData.Values)
         {
-
           robotData.WpsFileExist = File.Exists(robotData.WpsFileBuffer);
           if (robotData.WpsFileExist)
           {
@@ -210,14 +260,10 @@ namespace WPSDB
               robotData.WpsFileExist = false;
             }
           }
-
         }
       }
     }
-    private void UpdateRobBuffFile(Dictionary<string, RobotData> robotsData, ISimWorld world)
-    {
 
-    }
 
     /// <summary>
     /// Получает данные WPSDF для конкретного робота из layout item, если он существует, или возвращает null, если элемента нет.
@@ -232,15 +278,16 @@ namespace WPSDB
 
       string wpsItemName = LAYOUT_ITEM_NAME + robName;
       var existingItem = world.LayoutItems.FirstOrDefault(li => li.Name == wpsItemName);
-          
+
       if (existingItem != null)
       {
         layoutPropertiesList = existingItem as ILayoutPropertyList;
         IProperty robDataProperty = layoutPropertiesList.Properties.FirstOrDefault(p => p.Name == "RobotWpsdfData");
         return robDataProperty.Value.ToString();
       }
-        return null;
+      return null;
     }
+
 
     /// <summary>
     /// Обновляет данные WPSDF для каждого робота в layout, создавая или обновляя соответствующий 
@@ -308,6 +355,8 @@ namespace WPSDB
     }
   }
 }
+
+
 /// <summary>
 /// Данный класс RobotData используется для хранения информации о каждом роботе, включая ссылку 
 /// на его компонент в World, путь к файлу WPSDF, флаг совпадения пути к буферному файлу
@@ -328,4 +377,9 @@ public class RobotData
   public string SerializedData { get; set; } = "{}";
   //Имя элемента в layout для хранения данных WPSDF, например "KWS_Robot1"
   public string WpsItemName { get; set; }
+  // Метод для обновления флага существования буферного файла WPSDF, который может быть вызван после создания или удаления буферного файла
+  public void UpdateWpsFileExistence()
+  {
+    WpsFileExist = File.Exists(WpsFileBuffer);
+  }
 }
