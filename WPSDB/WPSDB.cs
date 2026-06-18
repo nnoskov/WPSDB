@@ -74,6 +74,7 @@ namespace WPSDB
               {
                 File.WriteAllText(rd.WpsFileBuffer, wpsdfData);
                 ms.AppendMessage($"WPSDF data for robot '{rd.RobotComponent.Name}' was loaded from layout to buffer file: {rd.WpsFileBuffer}", MessageLevel.Warning);
+
               }
               catch (Exception ex)
               {
@@ -111,15 +112,15 @@ namespace WPSDB
         {
           File.WriteAllText(robotData.WpsFileBuffer, robotData.SerializedData);
         }
-        IProperty ropSettingsProp = robotData.RobotComponent.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
-        string settingsValue = ropSettingsProp.Value?.ToString() ?? "{}";
+        IProperty robSettingsProp = robotData.RobotComponent.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
+        string settingsValue = robSettingsProp.Value?.ToString() ?? "{}";
         if (!string.IsNullOrEmpty(settingsValue) && settingsValue != "{}")
         {
           try
           {
             var jsonObject = JObject.Parse(settingsValue);
             jsonObject["WpsFilePath"] = robotData.WpsFileBuffer;
-            ropSettingsProp.Value = jsonObject.ToString(Formatting.None);
+            robSettingsProp.Value = jsonObject.ToString(Formatting.None);
           }
           catch (Exception ex)
           {
@@ -160,6 +161,10 @@ namespace WPSDB
 
     }
 
+    private bool UpdateRobProperty() {
+    
+      return true;
+    }
 
     /// <summary>
     /// Получаем данные WPSDF для всех роботов из World и возвращаем их в виде словаря.
@@ -263,6 +268,7 @@ namespace WPSDB
         }
       }
     }
+
 
 
     /// <summary>
