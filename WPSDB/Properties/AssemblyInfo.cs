@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Example001")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("WPSDB")]
+[assembly: AssemblyDescription("Plugin for store WPS data into project layout")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Example001")]
+[assembly: AssemblyCompany("AO Romanov")]
+[assembly: AssemblyProduct("BAZ WPSDB")]
 [assembly: AssemblyCopyright("Copyright ©  2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
