@@ -19,7 +19,6 @@ namespace WPSDB
     const string LAYOUT_ITEM_NAME = "KWS_";
     const string DEFAULT_WPSDF_PATH = @"C:\Users\Public\Documents\Delfoi\WPS\WPS_DataFile_";
     const string WPSPATH_END = @".wpsdf";
-    string serializedData = "{}";
 
     Dictionary<ISimComponent, string> robSettings = new Dictionary<ISimComponent, string>();
     Dictionary<string, RobotData> robotsData = new Dictionary<string, RobotData>();
@@ -109,115 +108,21 @@ namespace WPSDB
 
       CheckRobWPSBuffer(robotsData);
 
+      UpdateRobWpsdfDataInLayout(robotsData, world);
 
-      //foreach (var comp in world.Components)
-      //{
-      //  if (comp.Behaviors.Any(beh => beh.Type == BehaviorType.RobotController))
-      //  {
-      //    IProperty ropSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
-      //    if (ropSettingsProp != null)
-      //    {
-      //      string robName = comp.Name;
-      //      string wpsItemName = LAYOUT_ITEM_NAME + robName;
-      //      string settingsValue = ropSettingsProp.Value?.ToString() ?? "{}";
-
-      //      try
-      //      {
-      //        // Парсим JSON-строку в JObject
-      //        JObject jWpsFilePath = JObject.Parse(settingsValue);
-      //        // Получаем значение WpsFilePath
-      //        string wpsFilePath = jWpsFilePath["WpsFilePath"]?.ToString() ?? "No WpsFilePath";
-
-      //        ms.AppendMessage($"Processing component '{comp.Name}' with WpsFilePath: {wpsFilePath}", MessageLevel.Warning);
-
-      //        this.sameFile = string.Equals(wpsFilePath, DEFAULT_WPSDF_PATH, StringComparison.OrdinalIgnoreCase);
-
-      //        // Проверяем существование файла
-      //        if (!string.IsNullOrEmpty(wpsFilePath) && File.Exists(wpsFilePath))
-      //        {
-      //          // Читаем содержимое файла WPSDF
-      //          string wpsdfContent = File.ReadAllText(wpsFilePath);
-      //          // Парсим содержимое WPSDF в JObject
-      //          JObject wpsdfObject = JObject.Parse(wpsdfContent);
-      //          // Сериализуем объект обратно в строку
-      //          this.serializedData = wpsdfObject.ToString();
-
-      //          // Проверяем существование элемента в layout с именем wpsItemName
-      //          ILayoutPropertyList layoutPropertiesList = null;
-
-      //          // Проверяем, существует ли уже элемент с таким именем
-      //          var existingItem = world.LayoutItems.FirstOrDefault(li => li.Name == wpsItemName);
-
-      //          if (existingItem != null)
-      //          {
-      //            // Если существует, используем его
-      //            layoutPropertiesList = existingItem as ILayoutPropertyList;
-      //            if (layoutPropertiesList == null)
-      //            {
-      //              // Если элемент существует, но не того типа, удаляем и создаём заново
-      //              world.DeleteLayoutItem(existingItem);
-      //              layoutPropertiesList = world.CreateLayoutItem<ILayoutPropertyList>(wpsItemName);
-      //            }
-      //            else
-      //            {
-      //              ms.AppendMessage($"Using existing layout item: '{wpsItemName}'", MessageLevel.Warning);
-      //            }
-      //          }
-      //          else
-      //          {
-      //            // Если не существует, создаём новый
-      //            layoutPropertiesList = world.CreateLayoutItem<ILayoutPropertyList>(wpsItemName);
-      //            ms.AppendMessage($"Created new layout item: '{wpsItemName}'", MessageLevel.Warning);
-      //          }
-
-      //          if (layoutPropertiesList != null)
-      //          {
-      //            layoutPropertiesList.IsPersistent = true;
-
-      //            // Работаем со свойствами элемента
-      //            IProperty robDataProperty = layoutPropertiesList.Properties.FirstOrDefault(p => p.Name == "RobotWpsdfData");
-
-      //            if (robDataProperty != null)
-      //            {
-      //              robDataProperty.Value = this.serializedData;
-      //              ms.AppendMessage($"Updated property 'RobotWpsdfData' for component '{comp.Name}'", MessageLevel.Warning);
-      //            }
-      //            else
-      //            {
-      //              IProperty newRobDataProperty = layoutPropertiesList.CreateProperty(
-      //                  this.serializedData.GetType(),
-      //                  PropertyConstraintType.AllValuesAllowed,
-      //                  "RobotWpsdfData"
-      //              );
-      //              newRobDataProperty.Value = serializedData;
-      //              newRobDataProperty.IsPersistent = true;
-      //              ms.AppendMessage($"Created new property 'RobotWpsdfData' for component '{comp.Name}'", MessageLevel.Warning);
-      //            }
-      //          }
-
-      //          robSettings[comp] = $"WpsFilePath: {wpsFilePath}";
-      //        }
-      //        else
-      //        {
-      //          ms.AppendMessage($"WpsFilePath '{wpsFilePath}' does not exist for component '{comp.Name}'.", MessageLevel.Warning);
-      //        }
-      //      }
-      //      catch (Exception ex)
-      //      {
-      //        ms.AppendMessage($"Error processing component '{comp.Name}': {ex.Message}", MessageLevel.Warning);
-      //      }
-      //    }
-      //    else
-      //    {
-      //      ms.AppendMessage($"Component '{comp.Name}' does not have a 'RobotSettings' property.", MessageLevel.Warning);
-      //    }
-      //  }
-      //}
     }
 
+    /// <summary>
+    /// Получаем данные WPSDF для всех роботов из World и возвращаем их в виде словаря.
+    /// </summary>
+    /// <param name="app">Объект приложения IApplication.</param>
+    /// <param name="world">Объект мира ISimWorld, содержащий компоненты роботов.</param>
+    /// <returns>
+    /// Возвращает словарь, где ключом является имя компонента робота, а значением -
+    /// объект RobotData, содержащий данные WPSDF и другую информацию для данного робота.
+    /// </returns>
     private Dictionary<string, RobotData> GetRobotsData(IApplication app, ISimWorld world)
-    {
-      // Получаем данные WPSDF для всех роботов из World и возвращаем их в виде словаря
+    {  
       Dictionary<string, RobotData> robotData = new Dictionary<string, RobotData>();
       foreach (var comp in world.Components)
       {
@@ -227,7 +132,7 @@ namespace WPSDB
           string wpsFilePath = string.Empty;
           string wpsFileBuffer = DEFAULT_WPSDF_PATH + robName + WPSPATH_END;
           bool isSameFile = false;
-          serializedData = "{}";
+          string serializedData = "{}";
           IProperty robSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
           string settingsValue = robSettingsProp.Value?.ToString() ?? "{}";
           string wpsItemName = LAYOUT_ITEM_NAME + robName;
@@ -271,7 +176,11 @@ namespace WPSDB
       }
       return robotData;
     }
-
+    /// <summary>
+    /// Проверяет существование буферного файла WPSDF для каждого робота и создаёт его, если он не существует.
+    /// </summary>
+    /// <param name="robotsData">Словарь, где ключом является имя компонента робота, а значением -
+    /// объект RobotData, содержащий данные WPSDF и другую информацию для данного робота.</param>
     private void CheckRobWPSBuffer (Dictionary<string, RobotData> robotsData)
     {
       IMessageService ms = IoC.Get<IMessageService>();
@@ -305,29 +214,18 @@ namespace WPSDB
         }
       }
     }
-    private Dictionary<ISimComponent, string> GetWPSRobotDataFromLayout(IApplication app, ISimWorld world)
+    private void UpdateRobBuffFile(Dictionary<string, RobotData> robotsData, ISimWorld world)
     {
-      // Получаем данные WPSDF для всех роботов в layout и возвращаем их в виде словаря
-      Dictionary<ISimComponent, string> robotData = new Dictionary<ISimComponent, string>();
-      foreach (var comp in world.Components)
-      {
-        if (comp.Behaviors.Any(beh => beh.Type == BehaviorType.RobotController))
-        {
-          string robName = comp.Name;
-          string wpsdfData = GetRobWpsdfDataFromLY(robName);
-          if (!string.IsNullOrEmpty(wpsdfData))
-          {
-            robotData[comp] = wpsdfData;
-          }
-        }
-      }
-      return robotData;
+
     }
 
+    /// <summary>
+    /// Получает данные WPSDF для конкретного робота из layout item, если он существует, или возвращает null, если элемента нет.
+    /// </summary>
+    /// <param name="robName"></param>
+    /// <returns></returns>
     private string GetRobWpsdfDataFromLY(String robName)
     {
-      
-      // Возвращаем данные WPSDF из layout item в зависимости от имени робота или null
       ILayoutPropertyList layoutPropertiesList = null;
       IApplication app = _app.Value;
       ISimWorld world = app.World;
@@ -342,18 +240,92 @@ namespace WPSDB
         return robDataProperty.Value.ToString();
       }
         return null;
+    }
+
+    /// <summary>
+    /// Обновляет данные WPSDF для каждого робота в layout, создавая или обновляя соответствующий 
+    /// элемент и его свойство "RobotWpsdfData" с сериализованными данными WPSDF из robotsData.
+    /// </summary>
+    /// <param name="robotsData">Словарь с данными о всех роботах </param>
+    /// <param name="world">Текущий 3D Мир</param>
+    private void UpdateRobWpsdfDataInLayout(Dictionary<string, RobotData> robotsData, ISimWorld world)
+    {
+      IMessageService ms = IoC.Get<IMessageService>();
+      //Проверяем существование элемента в layout с именем wpsItemName
+      foreach (var robotData in robotsData.Values)
+      {
+        ILayoutPropertyList layoutPropertiesList = null;
+        // Проверяем, существует ли уже элемент с таким именем
+        var isItemexis = world.LayoutItems.FirstOrDefault(li => li.Name == robotData.WpsItemName);
+
+        if (isItemexis != null)
+        {
+          // Если существует, используем его
+          layoutPropertiesList = isItemexis as ILayoutPropertyList;
+          if (layoutPropertiesList == null)
+          {
+            // Если элемент существует, но не того типа, удаляем и создаём заново
+            world.DeleteLayoutItem(isItemexis);
+            layoutPropertiesList = world.CreateLayoutItem<ILayoutPropertyList>(robotData.WpsItemName);
+          }
+          else
+          {
+            ms.AppendMessage($"Using existing layout item: '{robotData.WpsItemName}'", MessageLevel.Info);
+          }
+        }
+        else
+        {
+          // Если не существует, создаём новый
+          layoutPropertiesList = world.CreateLayoutItem<ILayoutPropertyList>(robotData.WpsItemName);
+          ms.AppendMessage($"Created new layout item: '{robotData.WpsItemName}'", MessageLevel.Info);
+        }
+
+        if (layoutPropertiesList != null)
+        {
+          layoutPropertiesList.IsPersistent = true;
+
+          // Работаем со свойствами элемента
+          IProperty robDataProperty = layoutPropertiesList.Properties.FirstOrDefault(p => p.Name == "RobotWpsdfData");
+
+          if (robDataProperty != null)
+          {
+            robDataProperty.Value = robotData.SerializedData;
+            ms.AppendMessage($"Updated property 'RobotWpsdfData' for component '{robotData.RobotComponent}'", MessageLevel.Info);
+          }
+          else
+          {
+            IProperty newRobDataProperty = layoutPropertiesList.CreateProperty(
+                robotData.SerializedData.GetType(),
+                PropertyConstraintType.AllValuesAllowed,
+                "RobotWpsdfData"
+            );
+            newRobDataProperty.Value = robotData.SerializedData;
+            newRobDataProperty.IsPersistent = true;
+            ms.AppendMessage($"Created new property 'RobotWpsdfData' for component '{robotData.RobotComponent}'", MessageLevel.Info);
+          }
+        }
       }
+    }
   }
 }
-
+/// <summary>
+/// Данный класс RobotData используется для хранения информации о каждом роботе, включая ссылку 
+/// на его компонент в World, путь к файлу WPSDF, флаг совпадения пути к буферному файлу
+/// </summary>
 public class RobotData
 {
-   public ISimComponent RobotComponent { get; set; }
-   public string WpsFilePath { get; set; }
-   public bool IsSameFile { get; set; }
-   public string WpsFileBuffer { get; set; }
-   public bool WpsFileExist { get; set; }
-   public string SerializedData { get; set; } = "{}";
+  // Ссылка на компонент робота в World, для которого хранятся данные WPSDF
+  public ISimComponent RobotComponent { get; set; }
+  // Путь к файлу WPSDF для данного робота, полученный из его свойств RobotSettings
+  public string WpsFilePath { get; set; }
+  // Флаг, указывающий, совпадает ли путь к буферному файлу WPSDF с текущим путем к файлу WPSDF для данного робота
+  public bool IsSameFile { get; set; }
+  // Путь к буферному файлу WPSDF для данного робота (например, C:\Users\Public\Documents\Delfoi\WPS\WPS_DataFile_Robot1.wpsdf)
+  public string WpsFileBuffer { get; set; }
+  // Флаг, указывающий, существует ли буферный файл WPSDF для данного робота
+  public bool WpsFileExist { get; set; }
+  // Сериализованные данные WPSDF для хранения в layout item
+  public string SerializedData { get; set; } = "{}";
   //Имя элемента в layout для хранения данных WPSDF, например "KWS_Robot1"
   public string WpsItemName { get; set; }
 }
