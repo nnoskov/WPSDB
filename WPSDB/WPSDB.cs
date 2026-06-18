@@ -63,9 +63,9 @@ namespace WPSDB
           // Если в layout есть данные WPSDF для роботов, проверяем буферные файлы и
           // загружаем данные WPSDF для каждого робота из layout в его буферный файл,
           // если буферный файл не существует он будет создан
-          ms.AppendMessage("Layout contains WPSDF data for robots.", MessageLevel.Warning);
+          ms.AppendMessage("Layout contains WPS data for robots.", MessageLevel.Warning);
           CheckRobWPSBuffer(robotsData);
-          foreach (var rd in robotsData.Values)
+          foreach (RobotData rd in robotsData.Values)
           {
             string wpsdfData = GetRobWpsdfDataFromLY(rd.RobotComponent.Name);
             if (!string.IsNullOrEmpty(wpsdfData))
@@ -73,23 +73,24 @@ namespace WPSDB
               try
               {
                 File.WriteAllText(rd.WpsFileBuffer, wpsdfData);
-                ms.AppendMessage($"WPSDF data for robot '{rd.RobotComponent.Name}' was loaded from layout to buffer file: {rd.WpsFileBuffer}", MessageLevel.Warning);
+                ms.AppendMessage($"WPS data for robot '{rd.RobotComponent.Name}' was loaded from layout to buffer file: {rd.WpsFileBuffer}", MessageLevel.Warning);
 
               }
               catch (Exception ex)
               {
-                ms.AppendMessage($"Error writing WPSDF data to buffer file for robot '{rd.RobotComponent.Name}': {ex.Message}", MessageLevel.Error);
+                ms.AppendMessage($"Error writing WPS data to buffer file for robot '{rd.RobotComponent.Name}': {ex.Message}", MessageLevel.Error);
               }
             }
             else
             {
-              ms.AppendMessage($"No WPSDF data found in layout for robot '{rd.RobotComponent.Name}'. Buffer file will not be updated.", MessageLevel.Warning);
+              ms.AppendMessage($"No WPS data found in layout for robot '{rd.RobotComponent.Name}'. Buffer file will not be updated.", MessageLevel.Warning);
             }
+            UpdateRobSettings(rd.RobotComponent, "WpsFilePath", rd.WpsFileBuffer);
           }
         }
         else
         {
-          ms.AppendMessage("Layout does not contain WPSDF data for robots. Robot components will not be updated with WPSDF data.", MessageLevel.Warning);
+          ms.AppendMessage("Layout does not contain WPS data for robots. Robot components will not be updated with WPS data.", MessageLevel.Warning);
         }
       }
     }
@@ -112,25 +113,16 @@ namespace WPSDB
         {
           File.WriteAllText(robotData.WpsFileBuffer, robotData.SerializedData);
         }
-        IProperty robSettingsProp = robotData.RobotComponent.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
-        string settingsValue = robSettingsProp.Value?.ToString() ?? "{}";
-        if (!string.IsNullOrEmpty(settingsValue) && settingsValue != "{}")
-        {
-          try
-          {
-            var jsonObject = JObject.Parse(settingsValue);
-            jsonObject["WpsFilePath"] = robotData.WpsFileBuffer;
-            robSettingsProp.Value = jsonObject.ToString(Formatting.None);
-          }
-          catch (Exception ex)
-          {
-            ms.AppendMessage($"Error updating WpsFilePath for component '{robotData.RobotComponent.Name}': {ex.Message}", MessageLevel.Error);
-          }
-        }
+        UpdateRobSettings(robotData.RobotComponent, "WpsFilePath", robotData.WpsFileBuffer);
       }
       ms.AppendMessage("Layout Saving Finished", MessageLevel.Warning);
     }
 
+    /// <summary>
+    /// Определяет, есть ли в layout компоненты с поведением RobotController, что указывает на наличие роботов в layout.
+    /// </summary>
+    /// <param name="world">3Д Мир</param>
+    /// <returns></returns>
     private bool LayoutHasRobots(ISimWorld world)
     {
       return world.Components.Any(comp => comp.Behaviors.Any(beh => beh.Type == BehaviorType.RobotController));
@@ -161,9 +153,36 @@ namespace WPSDB
 
     }
 
-    private bool UpdateRobProperty() {
-    
-      return true;
+
+    /// <summary>
+    /// Обновляет заданное поле в свойстве "RobotSettings" компонента робота.
+    /// </summary>
+    /// <param name="robot">Объект робота в 3Д Мире</param>
+    /// <param name="prop">JSON поле в свойстве "RobotSettings"</param>
+    /// <param name="value">Значение JSON поля</param>
+    /// <returns></returns>
+    private bool UpdateRobSettings(ISimComponent robot, string prop, string value)
+    {
+      IProperty robProp = robot.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
+      string propValue = robProp.Value?.ToString() ?? "{}";
+      IMessageService ms = IoC.Get<IMessageService>();
+
+      if (!string.IsNullOrEmpty(propValue) && propValue != "{}")
+      {
+        try
+        {
+          var jsonObject = JObject.Parse(propValue);
+          jsonObject[prop] = value;
+          robProp.Value = jsonObject.ToString(Formatting.None);
+          return true;
+        }
+        catch (Exception ex)
+        {
+          ms.AppendMessage($"Error updating {prop} for component '{robot.Name}': {ex.Message}", MessageLevel.Error);
+          return false;
+        }
+      }
+      return false;
     }
 
     /// <summary>
