@@ -201,9 +201,10 @@ namespace WPSDB
       {
         if (comp.Behaviors.Any(beh => beh.Type == BehaviorType.RobotController))
         {
+          string layoutName = Path.GetFileNameWithoutExtension(app.LayoutUri.AbsolutePath);
           string robName = comp.Name.Replace(' ', '_');
           string wpsFilePath = string.Empty;
-          string wpsFileBuffer = DEFAULT_WPSDF_PATH + robName + WPSPATH_END;
+          string wpsFileBuffer = $@"{DEFAULT_WPSDF_PATH}{robName}_{layoutName}{WPSPATH_END}";
           bool isSameFile = false;
           string serializedData = "{}";
           IProperty robSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
@@ -384,7 +385,7 @@ namespace WPSDB
 
 /// <summary>
 /// Данный класс RobotData используется для хранения информации о каждом роботе, включая ссылку 
-/// на его компонент в World, путь к файлу WPSDF, флаг совпадения пути к буферному файлу
+/// на его компонент в World, путь к файлу WPSDF, флаг совпадения пути к буферному файлу и прочее.
 /// </summary>
 public class RobotData
 {
