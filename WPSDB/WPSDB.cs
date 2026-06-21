@@ -17,8 +17,8 @@ namespace WPSDB
     const string LAYOUT_ITEM_NAME = "KWS_";
     const string DEFAULT_WPSDF_PATH = @"C:\Users\Public\Documents\Delfoi\WPS\WPS_DataFile_";
     const string WPSPATH_END = @".wpsdf";
+    string layoutName = "";
 
-    Dictionary<ISimComponent, string> robSettings = new Dictionary<ISimComponent, string>();
     Dictionary<string, RobotData> robotsData = new Dictionary<string, RobotData>();
 
     [Import]
@@ -93,6 +93,7 @@ namespace WPSDB
           ms.AppendMessage("Layout does not contain WPS data for robots. Robot components will not be updated with WPS data.", MessageLevel.Warning);
         }
       }
+      layoutName = Path.GetFileNameWithoutExtension(app.LayoutUri.AbsolutePath);
     }
 
 
@@ -105,10 +106,19 @@ namespace WPSDB
     private void AppLayoutSaved(object sender, LayoutSavedEventArgs e)
     {
       IMessageService ms = IoC.Get<IMessageService>();
-      // Если буферный файл существует и не совпадает с текущим файлом, сохраняем данные в буферный файл
+
+      robotsData = GetRobotsData(_app.Value, _app.Value.World);
+      if (layoutName != Path.GetFileNameWithoutExtension(_app.Value.LayoutUri.AbsolutePath))
+      {
+        layoutName = Path.GetFileNameWithoutExtension(_app.Value.LayoutUri.AbsolutePath);
+        CheckRobWPSBuffer(robotsData);
+      }
+
+
       foreach (var robotData in robotsData.Values)
 
       {
+        // Если буферный файл существует и не совпадает с текущим файлом, сохраняем данные в буферный файл
         if (robotData.WpsFileExist && !robotData.IsSameFile)
         {
           File.WriteAllText(robotData.WpsFileBuffer, robotData.SerializedData);
@@ -146,11 +156,8 @@ namespace WPSDB
       ISimWorld world = app.World;
 
       robotsData = GetRobotsData(app, world);
-
       CheckRobWPSBuffer(robotsData);
-
       UpdateRobWpsdfDataInLayout(robotsData, world);
-
     }
 
 
@@ -210,21 +217,23 @@ namespace WPSDB
           IProperty robSettingsProp = comp.Properties.FirstOrDefault(p => p.Name == "RobotSettings");
           string settingsValue = robSettingsProp.Value?.ToString() ?? "{}";
           string wpsItemName = LAYOUT_ITEM_NAME + comp.Name;
+          bool isBufferExist = false;
           try
           {
             // Парсим JSON-строку в JObject
             JObject jWpsFilePath = JObject.Parse(settingsValue);
             // Получаем значение WpsFilePath
-            wpsFilePath = jWpsFilePath["WpsFilePath"]?.ToString() ?? "No WpsFilePath";
+            wpsFilePath = jWpsFilePath["WpsFilePath"]?.ToString() ?? "{}";
             isSameFile = string.Equals(wpsFilePath, wpsFileBuffer, StringComparison.OrdinalIgnoreCase);
-            if (!string.IsNullOrEmpty(wpsFilePath) && File.Exists(wpsFilePath))
+            isBufferExist = File.Exists(wpsFilePath);
+            if (isBufferExist)
             {
-              // Читаем содержимое файла WPSDF текущего робота
+              // Читаем содержимое файла WPS текущего робота
               string wpsdfContent = File.ReadAllText(wpsFilePath);
               // Парсим содержимое WPSDF в JObject
               JObject wpsdfObject = JObject.Parse(wpsdfContent);
               // Сериализуем объект обратно в строку для хранения в классе RobotData
-              serializedData = wpsdfObject.ToString();
+              serializedData = wpsdfObject.ToString(Formatting.None);
             }
             else
             {
@@ -235,7 +244,7 @@ namespace WPSDB
           catch (Exception ex)
           {
             IMessageService ms = IoC.Get<IMessageService>();
-            ms.AppendMessage($"Error processing component '{comp.Name}': {ex.Message}", MessageLevel.Warning);
+            ms.AppendMessage($"GetRobotData: Error processing component '{comp.Name}': {ex.Message}", MessageLevel.Warning);
           }
           robotData[comp.Name] = new RobotData
           {
@@ -244,7 +253,9 @@ namespace WPSDB
             IsSameFile = isSameFile,
             WpsFileBuffer = wpsFileBuffer,
             SerializedData = serializedData,
-            WpsItemName = wpsItemName
+            WpsItemName = wpsItemName,
+            IsDataValid = serializedData != "{}",
+            WpsFileExist = isBufferExist,
           };
         }
       }
@@ -268,7 +279,7 @@ namespace WPSDB
           robotData.WpsFileExist = File.Exists(robotData.WpsFileBuffer);
           if (robotData.WpsFileExist)
           {
-            ms.AppendMessage($"Default WPSDF file found at: {robotData.WpsFileBuffer}", MessageLevel.Warning);
+            ms.AppendMessage($"WPS buffer file found at: {robotData.WpsFileBuffer}", MessageLevel.Warning);
           }
           else
           {
@@ -277,7 +288,7 @@ namespace WPSDB
               Directory.CreateDirectory(Path.GetDirectoryName(robotData.WpsFileBuffer)); // Создаём директорию, если её нет
               File.Create(robotData.WpsFileBuffer).Close(); // Создаём пустой файл, если его нет
               robotData.WpsFileExist = true;
-              ms.AppendMessage($"Default WPSDF was created to path: {robotData.WpsFileBuffer}", MessageLevel.Warning);
+              ms.AppendMessage($"WPS buffer was created to path: {robotData.WpsFileBuffer}", MessageLevel.Warning);
             }
             catch (Exception ex)
             {
@@ -327,6 +338,10 @@ namespace WPSDB
       //Проверяем существование элемента в layout с именем wpsItemName
       foreach (var robotData in robotsData.Values)
       {
+        if (!robotData.IsDataValid)
+        {
+          continue;
+        }
         ILayoutPropertyList layoutPropertiesList = null;
         // Проверяем, существует ли уже элемент с таким именем
         var isItemexis = world.LayoutItems.FirstOrDefault(li => li.Name == robotData.WpsItemName);
@@ -403,6 +418,8 @@ public class RobotData
   public string SerializedData { get; set; } = "{}";
   //Имя элемента в layout для хранения данных WPSDF, например "KWS_Robot1"
   public string WpsItemName { get; set; }
+  // Данные валидны и готовы к сохранению в буферный файл и layout item
+  public bool IsDataValid { get; set; }
   // Метод для обновления флага существования буферного файла WPSDF, который может быть вызван после создания или удаления буферного файла
   public void UpdateWpsFileExistence()
   {
