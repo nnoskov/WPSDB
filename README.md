@@ -29,11 +29,11 @@ Build
 -----
 - Open WPSDB.slnx in Visual Studio (project targets .NET Framework 4.7.2).
 - Restore NuGet packages and build the solution.
-- Output: WPSDB.dll
+- Output: UX.WPSDB.dll
 
 Install / Deploy
 ----------------
-- Copy the built WPSDB.dll (and any dependent assemblies if required) into the Visual Components add-ins/plugins folder or register the plugin according to your Visual Components installation procedure.
+- Copy the built UX.WPSDB.dll (and any dependent assemblies if required) into the Visual Components add-ins/plugins folder or register the plugin according to your Visual Components installation procedure.
 - Restart Visual Components. The plugin is exported with MEF (Export(typeof(IPlugin))) and will be loaded automatically.
 
 Configuration
@@ -57,10 +57,10 @@ Troubleshooting
 
 License
 -------
-- Add a license file before publishing (e.g., MIT, Apache-2.0).
+- Apache-2.0.
 
 Author
 ------
-AO Romanov
+Noskov N.V. AO Romanov
 
 Assembly metadata is available in `WPSDB/Properties/AssemblyInfo.cs`.
